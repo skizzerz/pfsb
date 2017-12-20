@@ -1,7 +1,7 @@
 #include "errors.hpp"
 #include "pfMon.hpp"
 #include "platform.hpp"
-#include "version.hpp"
+#include "config.hpp"
 
 #include <cstring>
 #include <iostream>
@@ -27,7 +27,7 @@ void findAndReplace(fstream& outfile, const char* replacement, const char* searc
 
 int main(int argc, char** argv) {
 
-		if (argc == 1) {
+	if (argc == 1) {
 		doPf();
 
 		#ifdef _DEBUG
@@ -156,7 +156,7 @@ void doPf() {
  *                                WRITE FILE                                 *
 \*****************************************************************************/
 
-	findAndReplace(monster.file,_VERSION,u8"PROGVER",monster.fileName);
+	findAndReplace(monster.file, PFSB_VERSION,u8"PROGVER",monster.fileName);
 
 	tempStorage = "PFSB - ";
 	tempStorage += monster.monName;

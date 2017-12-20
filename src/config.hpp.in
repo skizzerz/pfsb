@@ -1,0 +1,13 @@
+#ifndef CONFIG_HPP
+#define CONFIG_HPP
+
+#define QUOTE(s) #s
+#define EXPQUOTE(s) QUOTE(s)
+
+// modify version numbers by changing the project's VERSION tag in src/CMakeLists.txt
+#define PFSB_MAJOR_VERSION @Program_VERSION_MAJOR@
+#define PFSB_MINOR_VERSION @Program_VERSION_MINOR@
+#define PFSB_PATCH_VERSION @Program_VERSION_PATCH@
+#define PFSB_VERSION EXPQUOTE(PFSB_MAJOR_VERSION) "." EXPQUOTE(PFSB_MINOR_VERSION) "." EXPQUOTE(PFSB_PATCH_VERSION)
+
+#endif
