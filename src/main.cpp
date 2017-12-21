@@ -544,10 +544,10 @@ void printOgl() {
 void printVersion() {
 	cout << "PFSB, a PF RPG monster Stat Block generator" << endl << endl;
 	#ifndef _DEBUG
-	cout << "PFSB version " << _VERSION << endl;
+	cout << "PFSB version " << PFSB_VERSION << endl;
 	#endif
 	#ifdef _DEBUG
-	cout << "PFSB debug version " << _VERSION << endl;
+	cout << "PFSB debug version " << PFSB_VERSION << endl;
 	#endif
 	cout << "Distributed under the Open Gaming License v1.0a. A copy of the OGL should have" << endl;
 		cout << "been included with this program, as indicated in section 10 of OGLv1.0a, as" << endl;

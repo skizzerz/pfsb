@@ -5,15 +5,8 @@
 
 using namespace std;
 
-/* I'd prefer it if all enums are referred to by specifying the enum it came
- * from. I think namespace is probably the wrong term for this, and something
- * about "scoped" seems like it could be somehow confusing. Whatever the term
- * for referring to enums as EnumName::ENUM_VALUE instead of just ENUM_VALUE is
- * what I mean to type.
- */
-
-enum CreatureType {ABERRATION = 1, ANIMAL, CONSTRUCT, DRAGON, FEY, HUMANOID, MAGICAL_BEAST, MONSTROUS_HUMANOID, OOZE, OUTSIDER, PLANT, UNDEAD, VERMIN};
-enum Size {FINE = 1, DIMINUTIVE, TINY, SMALL, MEDIUM, LARGE, HUGE, GARGANTUAN, COLOSSAL};
+enum class CreatureType {ABERRATION = 1, ANIMAL, CONSTRUCT, DRAGON, FEY, HUMANOID, MAGICAL_BEAST, MONSTROUS_HUMANOID, OOZE, OUTSIDER, PLANT, UNDEAD, VERMIN};
+enum class Size {FINE = 1, DIMINUTIVE, TINY, SMALL, MEDIUM, LARGE, HUGE, GARGANTUAN, COLOSSAL};
 
 struct Abilities{
 

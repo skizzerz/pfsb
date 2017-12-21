@@ -41,3 +41,10 @@ Also note that make uninstall intentionally leaves the CSS file where it is, so 
 As written, this version of the program will only function on *nix systems, but
 it should be trivial to make it behave on Windows. Follow development at
 https://github.com/frozenMustelid/pfsb
+
+Developers using Visual Studio on Windows should install vcpkg and make it available
+in your user profile via symbolic link in order for VS to compile correctly. You can
+achieve this by executing the following command in an elevated command prompt
+(replace "Username" with your user name):
+> mklink /D C:\Users\Username\vcpkg path\to\vcpkg
+For example: mklink /D C:\Users\bob\vcpkg D:\src\vcpkg
