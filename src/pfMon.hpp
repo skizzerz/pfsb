@@ -33,27 +33,27 @@ public:
  *                                 HEADER                                     *
 \******************************************************************************/
 
-	string monName;
-	char cr[4];
-	string xp;
-	char alignment[3];
+	std::string monName;
+	ChallengeRating CR;
+	uint32_t XP;
+	Alignment alignment;
 	Size creatSize;
-	string creatSizeWords;
 	CreatureType creatType;
-	string creatTypeWords;
-	string subtypes;
+	std::string creatTypeWords;
+	std::string subtypes;
 	int initiative;
-	string senses;
-	string aura;
+	std::string senses;
+	std::string aura;
 
-	long crAndXp(); //Returns the XP value
-	char* fetchAlignment();
-	string fetchSize();
-	string fetchCreatureType();
-	string fetchSubtypes();
+	ChallengeRating fetchCR();
+	uint32_t determineXP(const ChallengeRating& cr);
+	Alignment fetchAlignment();
+	Size fetchSize();
+	std::string fetchCreatureType();
+	std::string fetchSubtypes();
 	int determineInitiative();
-	string fetchSenses();
-	string fetchAura();
+	std::string fetchSenses();
+	std::string fetchAura();
 
 
 /******************************************************************************\
@@ -63,85 +63,89 @@ public:
 	AC ac;
 	HitDice hd;
 	int hp;
-	string hpBreakdown;
+	std::string hpBreakdown;
 	Saves saves;
-	string defensiveAbilities;
-	string immunities;
-	string resistances;
-	string weaknesses;
-	string dr;
-	string sr;
+	std::string defensiveAbilities;
+	std::string immunities;
+	std::string resistances;
+	std::string weaknesses;
+	std::string dr;
+	std::string sr;
 
 	AC determineAC();
 	HitDice fetchHd();
 	int calculateHp();
 	Saves determineSaves();
-	string fetchDefensiveAbilities();
-	string determineImmunities();
-	string fetchResistances();
-	string fetchWeaknesses();
-	string fetchDr();
-	string fetchSr();
+	std::string fetchDefensiveAbilities();
+	std::string determineImmunities();
+	std::string fetchResistances();
+	std::string fetchWeaknesses();
+	std::string fetchDr();
+	std::string fetchSr();
 
 
 /******************************************************************************\
  *                                OFFENSE                                     *
 \******************************************************************************/
 
-	string speed;
-	string meleeAtk;
-	string rangedAtk;
-	string space;
-	string reach;
-	string specAtk;
+	std::string speed;
+	std::string meleeAtk;
+	std::string rangedAtk;
+	std::string space;
+	std::string reach;
+	std::string specAtk;
 
-	string fetchSpeed();
-	string fetchMeleeAtk();
-	string fetchRangedAtk();
-	string calculateSpace();
-	string determineReach();
-	string fetchSpecialAttacks();
+	std::string fetchSpeed();
+	std::string fetchMeleeAtk();
+	std::string fetchRangedAtk();
+	std::string calculateSpace();
+	std::string determineReach();
+	std::string fetchSpecialAttacks();
 
 
 /******************************************************************************\
  *                               STATISTICS                                   *
 \******************************************************************************/
 
-	Abilities abilities;
+	AbilityScore strength;
+	AbilityScore dexterity;
+	AbilityScore constitution;
+	AbilityScore intelligence;
+	AbilityScore wisdom;
+	AbilityScore charisma;
 	int bab;
 	Maneuvers maneuvers;
-	string featList;
-	string skillList;
-	string languageList;
-	string specialQualities;
+	std::string featList;
+	std::string skillList;
+	std::string languageList;
+	std::string specialQualities;
 
-	Abilities fetchAbilities();
 	int calculateBab();
 	Maneuvers determineCombatManeuvers();
-	string fetchFeats();
-	string fetchSkills();
-	string fetchLanguages();
-	string fetchSpecialQualities();
+	std::string fetchFeats();
+	std::string fetchSkills();
+	std::string fetchLanguages();
+	std::string fetchSpecialQualities();
 
 /******************************************************************************\
  *                                ECOLOGY                                     *
 \******************************************************************************/
 
-	string environmentList;
-	string groupList;
-	string lootList;
+	std::string environmentList;
+	std::string groupList;
+	std::string lootList;
 
-	string fetchEnvironment();
-	string fetchOrganization();
-	string fetchTreasure();
+	std::string fetchEnvironment();
+	std::string fetchOrganization();
+	std::string fetchTreasure();
 
 /******************************************************************************\
  *                           SPECIAL ABILITIES                                *
 \******************************************************************************/
 
-	string specialAbilities;
+	std::string specialAbilities;
 
-	string fetchSpecialAbilities();
+	std::string fetchSpecialAbilities();
 
 /******************************************************************************\
  *                                 SYSTEM                                     *
@@ -152,7 +156,7 @@ public:
 
 	PfMon();
 	~PfMon();
-	string prepareWrite();
+	std::string prepareWrite();
 
 
 private:
@@ -161,15 +165,15 @@ private:
  *                                 HEADER                                     *
 \******************************************************************************/
 
-	string formatXp(long xp);
+	std::string formatXp(long xp);
 	CreatureType determineCreatureType();
 
 /******************************************************************************\
  *                                 DEFENSE                                    *
 \******************************************************************************/
 
-	string calculateAcBreakdown();
-	string calculateHpBreakdown();
+	std::string calculateAcBreakdown();
+	std::string calculateHpBreakdown();
 };
 
 #endif // PFMON_HPP

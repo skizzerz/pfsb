@@ -1,6 +1,4 @@
-#include "errors.hpp"
 #include "pfMon.hpp"
-#include "platform.hpp"
 #include "config.hpp"
 
 #include <cstring>
@@ -8,82 +6,77 @@
 #include <string>
 #include <fstream>
 
-/* And for some reason, GCC no longer requires me to include cstdlib to call
- * exit. Wat.
- */
+#include <boost/program_options.hpp>
 
 using namespace std;
+namespace po = boost::program_options;
 
-void printHelp();
+void printHelp(const po::options_description& desc);
 void printOgl();
 void printVersion();
 
-void selectGame(int argc, char**argv);
+int selectGame(const string& game);
 void doPf();
 
-void insertIntoFile(fstream& monster, const char* toInsert, long beforeDollar, int keyLength, const char* baseFileName);
-long findDollar(fstream& monster, long currentPos);
-void findAndReplace(fstream& outfile, const char* replacement, const char* searchKey, const char* fileName);
+int main(int argc, char* argv[]) {
+	po::options_description desc("Options");
+	desc.add_options()
+		("help,h,?", "Display help message")
+		("ogl,o", "Display OGL text")
+		("version,v", "Display version")
+		("game", po::value<string>()->required(), "Select game system; this can also be the first positional argument");
 
-int main(int argc, char** argv) {
+	po::positional_options_description pos;
+	pos.add("game", 1);
 
-	if (argc == 1) {
-		doPf();
+	po::variables_map vm;
+	po::store(
+		po::command_line_parser(argc, argv).options(desc).positional(pos).run(),
+		vm);
+	po::notify(vm);
 
-		#ifdef _DEBUG
-		cout << "Exited doProgram()" << endl;
-		#endif
-
-		exit(0);
-	} else if (argc == 2) {
-/******************************************************************************/
-#if (_PLATFAM == __unix)
-		if (!strcmp("--help",argv[1])) {
-#endif
-#if (_PLATFAM == __WIN32)
-		if (!strcmp("/?",argv[1])) {
-#endif
-/******************************************************************************/
-			printHelp();
-			exit(0);
+	if (vm.count("help")) {
+		printHelp(desc);
+		return 0;
 	}
-/******************************************************************************/
-#if (_PLATFAM == __unix)
-		if (!strcmp("--ogl",argv[1])) {
-#endif
-#if (_PLATFAM == __WIN32)
-		if (!strcmp("/o",argv[1])) {
-#endif
-/******************************************************************************/
-			printOgl();
-			exit(0);
+
+	if (vm.count("version")) {
+		printVersion();
+		return 0;
 	}
-/******************************************************************************/
-//Compatibility note: No #ifs on --version because I don't know what's idiomatic for Windows
-/******************************************************************************/
-		if (!strcmp("--version",argv[1])) {
-			printVersion();
-			exit(0);
+
+	if (vm.count("ogl")) {
+		printOgl();
+		return 0;
+	}
+
+	if (vm.count("game")) {
+		auto game = vm["game"].as<string>();
+
+		if (game != "pf") {
+			
+			return 1;
 		}
-		
-		selectGame(argc,argv);
+
+		return selectGame(game);
 	} else {
-		cout << "Unrecognized option!" << endl;
-		exit(_ERR_UNRECOGNIZED_CLI_OPTION);
+		cout << "Game system not specified, see --help for usage information." << endl;
+		return 1;
 	}
 
 	return 0;
 }
 
-void selectGame(int argc, char** argv) {
+int selectGame(const string& game) {
 
-	if (!strcmp("pf",argv[1])) {
+	if (game == "pf") {
 		doPf();
-		exit(0);
+	} else {
+		cout << "Unrecognized game system '" << game << "' -- valid systems are: pf" << endl;
+		return 1;
 	}
 
-	cout << "Unrecognized option!" << endl;
-	exit(_ERR_UNRECOGNIZED_CLI_OPTION);
+	return 0;
 }
 
 void doPf() {
@@ -104,10 +97,11 @@ void doPf() {
 	cout << "File path: " << monster.fileName << endl;
 	#endif
 	
-	monster.crAndXp();
-	monster.fetchAlignment();
-	monster.fetchSize();
-	monster.fetchCreatureType();
+	monster.CR = monster.fetchCR();
+	monster.XP = monster.determineXP(monster.CR);
+	monster.alignment = monster.fetchAlignment();
+	monster.creatSize = monster.fetchSize();
+	monster.creatType = monster.fetchCreatureType();
 	monster.fetchSubtypes();
 	monster.fetchAura();
 
@@ -143,7 +137,7 @@ void doPf() {
 	monster.fetchOrganization();
 	monster.fetchTreasure();
 
-	monster.fetchSpecialAbilities(); //*/
+	monster.fetchSpecialAbilities();
 
 	#ifndef _DEBUG
 	monster.prepareWrite();
@@ -155,7 +149,7 @@ void doPf() {
 /*****************************************************************************\
  *                                WRITE FILE                                 *
 \*****************************************************************************/
-
+	/*
 	findAndReplace(monster.file, PFSB_VERSION,u8"PROGVER",monster.fileName);
 
 	tempStorage = "PFSB - ";
@@ -269,7 +263,7 @@ void doPf() {
 
 
 	findAndReplace(monster.file,monster.specialAbilities.c_str(),u8"SPECABL",monster.fileName);
-
+	*/
 
 
 	monster.file.close();
@@ -283,358 +277,33 @@ void doPf() {
 
 }
 
+void printHelp(const po::options_description& desc) {
 
-void findAndReplace(fstream& outfile, const char* replacement, const char* searchKey, const char* fileName) {
-
-	/* I am at a total loss to explain why this code doesn't fucking work if
-	 * you give it a search key longer than 8 characters (including the null
-	 * terminator). If you have even the slightest fucking clue, please tell
-	 * me why. I'd love to know. I could have gotten this first version of the
-	 * code out nearly a month earlier if I hadn't been trying to figure out
-	 * why this piece of shit doesn't work. The reason this segment of the
-	 * code is such a giant fucking mess is because I couldn't figure out what
-	 * the fuck is wrong with it.
-	 *
-	 * Seriously, if you know, please share with the class. I'd love to know.
-	 * It's probably something stupid, but at least then I'd know how I
-	 * managed to FUBAR this so hard. I'd honestly be impressed with myself if
-	 * I wasn't so pissed off.
-	 */
-
-	fstream part1;
-	fstream part2;
-	long currentPos = 0;
-	const int keyLength = strlen(searchKey);
-	char current;
-	bool located = false;
-
-	char* potentialMatch = new char[keyLength];
-
-	outfile.seekp(0L, ios::beg);
-	outfile.seekg(0L, ios::beg);
-
-	/*#ifdef _DEBUG
-	cout << "find-replace entered" << endl;
-	#endif*/
-
-	do {
-		//outfile.seekg(0L, ios::beg);
-		currentPos = findDollar(outfile, currentPos);
-
-		current = outfile.peek();
-
-		/*#ifdef _DEBUG
-		cout << "Initial character found: " << *//*static_cast<int>(current)*//* current<<endl;
-		#endif //*/
-
-		for (int x=0; x <= keyLength; x++) {
-			if (searchKey[x] == (current = outfile.get())) {
-				potentialMatch[x] = current;
-
-
-				#ifdef _DEBUG
-				cout << "Next character found!" << endl;
-
-				cout << "Potential match (for loop): " << potentialMatch << endl;
-				cout << "Current char (for loop): " << current << endl;
-				#endif //*/
-
-
-			} else {
-
-				#ifdef _DEBUG
-				cout << "Not found at this point, we found: " << potentialMatch << endl;
-				#endif //*/
-				break;
-			}
-		}
-
-
-
-		if (!strcmp(potentialMatch,searchKey)) {
-			located = true;
-		}
-
-		#ifdef _DEBUG
-		cout << "Potential match (while loop): " << potentialMatch << endl;
-		#endif //*/
-
-	} while (!located && current != EOF);
-
-	if (current == EOF) {
-		cout << "Match not found, exiting program." << endl;
-		exit(0);
-	}
-	#ifdef _DEBUG
-	cout << "Found match" << endl;
-	#endif //*/
-
-	currentPos = currentPos - 1;
-
-	//Item found and read cursor moved right before $
-
-
-	insertIntoFile(outfile, replacement, currentPos, keyLength, fileName);
-
-
-	outfile.seekp(currentPos,ios::beg);
-
-
-	delete[] potentialMatch;
-
-}
-
-
-long findDollar(fstream& monster, long currentPos) {
-
-	char ch = ' ';
-
-	monster.seekg(currentPos, ios::beg);
-
-	while (ch != EOF && ch != '$') {
-
-		ch = monster.get();
-
-		currentPos++;
-	}
-
-	monster.seekg(currentPos, ios::beg);
-
-	#ifdef _DEBUG
-	cout << "$ found at position: " << currentPos << endl;
-	#endif
-
-	return currentPos;
-}
-
-
-void insertIntoFile(fstream& monster, const char* toInsert, long beforeDollar, int keyLength, const char* baseFileName) {
-	#ifdef _DEBUG
-	cout << "entered insertIntoFile()" << endl;
-	#endif
-
-	int fileNameSize = (1+strlen(baseFileName)) + 6;
-
-	fstream part1;
-	char* part1Name = new char[fileNameSize];
-
-	fstream part2;
-	char* part2Name = new char[fileNameSize];
-
-	strcpy(part1Name,baseFileName);
-	strcpy(part2Name,baseFileName);
-
-	part1.open(strcat(part1Name,".part1"),ios::in|ios::out|ios::app);
-	part2.open(strcat(part2Name,".part2"),ios::in|ios::out|ios::app);
-
-	monster.seekg(0L, ios::beg);
-
-
-	do {
-		part1.put(monster.get());
-
-	} while (monster.tellg() != beforeDollar);
-
-	monster.seekg(beforeDollar + keyLength + 1, ios::beg);
-
-	do {
-		part2.put(monster.get());
-
-	} while (!monster.eof());
-
-	part2.seekg(0L, ios::beg);
-
-	#ifdef _DEBUG
-	cout << "toInsert: " << toInsert << endl;
-	#endif
-
-	part1 << toInsert;
-
-	#ifdef _DEBUG
-	cout << "inserted" << endl;
-	#endif
-
-	part1 << part2.rdbuf();
-
-	#ifdef _DEBUG
-	cout << "cat part1 and part2" << endl;
-	#endif
-
-
-	part2.close();
-
-	/* To reset the file's r/w position and overwrite it. Some functions may
-	 * intentionally erase large chunks of the file, so moving to the file
-	 * beginning may not overwrite everything as planned.
-	 */
-	monster.close();
-	monster.open(baseFileName, ios::in|ios::out|ios::trunc);
-
-	part1.seekp(0L, ios::beg);
-	part1.seekg(0L, ios::beg);
-
-	monster << part1.rdbuf();
-
-	part1.close();
-
-	remove(part1Name);
-	remove(part2Name);
-
-	delete[] part1Name;
-	delete[] part2Name;
-
-	/*monster.seekp(0L, ios::beg);
-	monster.seekg(0L, ios::beg);*/
-
-	monster.clear();
-
-	return;
-}
-
-
-void printHelp() {
-	cout << "Run the program with no arguments to use it. It will output an HTML file in the" << endl;
-		cout << "\tcurrent directory." << endl;
-/******************************************************************************/
-#if (_PLATFAM == __unix)
-	cout << "Use --version to print version info." << endl;
-#endif
-#if (_PLATFAM == WIN32)
-	cout << "Use --version to print version info." << endl; //Compatibility note: Version text is same because I don't know what's idiomatic for Windows
-#endif
-/******************************************************************************/
-#if (_PLATFAM == __unix)
-	cout << "Use --ogl to print OGL-mandated information about product identity and open game" << endl;
-		cout << "\tcontent." << endl;
-#endif
-#if (_PLATFAM == WIN32)
-	cout << "Use /o to print OGL-mandated information about product identity and open game" << endl;
-		cout << "\tcontent." << endl;
-#endif
-/******************************************************************************/
-#if (_PLATFAM == __unix)
-	cout << "Use --help to print this text." << endl;
-#endif
-#if (_PLATFAM == WIN32)
-	cout << "Use /? to print this text." << endl;
-#endif
-/******************************************************************************/
+	cout << desc << endl;
+	cout << "Run the program with no arguments to use it. It will output an HTML file in the current directory." << endl;
 	cout << "Note: It is strongly advised that no user inputs contain dollar signs."<< endl << endl;
-
-	return;
 }
 
 void printOgl() {
-	cout << endl << "Product Identity: The following items are hereby identified as Product Identity," << endl;
-		cout << "as defined in the Open Game License version 1.0a, Section 1(e), and are not Open" << endl;
-		cout << "Content: All trademarks, registered trademarks, proper names (characters," << endl;
-		cout << "deities, etc.), dialogue, plots, storylines, locations, characters, artwork, and" << endl;
-		cout << "trade dress. (Elements that have previously been designated as Open Game Content" << endl;
-		cout << "or are in the public domain are not included in this declaration.)" << endl << endl;
+	cout << "Product Identity: The following items are hereby identified as Product Identity," << endl;
+	cout << "as defined in the Open Game License version 1.0a, Section 1(e), and are not Open" << endl;
+	cout << "Content: All trademarks, registered trademarks, proper names (characters," << endl;
+	cout << "deities, etc.), dialogue, plots, storylines, locations, characters, artwork, and" << endl;
+	cout << "trade dress. (Elements that have previously been designated as Open Game Content" << endl;
+	cout << "or are in the public domain are not included in this declaration.)" << endl << endl;
 
 	cout << "Open Content: Except for material designated as Product Identity (see above)," << endl;
-		cout << "the game mechanics of this game product are Open Game Content, as defined in the" << endl;
-		cout << "Open Gaming License version 1.0a Section 1(d). No portion of this work other" << endl;
-		cout << "than the material designated as Open Game Content may be reproduced in any form" << endl;
-		cout << "without written permission." << endl << endl;
-
-	return;
+	cout << "the game mechanics of this game product are Open Game Content, as defined in the" << endl;
+	cout << "Open Gaming License version 1.0a Section 1(d). No portion of this work other" << endl;
+	cout << "than the material designated as Open Game Content may be reproduced in any form" << endl;
+	cout << "without written permission." << endl << endl;
 }
 
 void printVersion() {
 	cout << "PFSB, a PF RPG monster Stat Block generator" << endl << endl;
-	#ifndef _DEBUG
 	cout << "PFSB version " << PFSB_VERSION << endl;
-	#endif
-	#ifdef _DEBUG
-	cout << "PFSB debug version " << PFSB_VERSION << endl;
-	#endif
 	cout << "Distributed under the Open Gaming License v1.0a. A copy of the OGL should have" << endl;
-		cout << "been included with this program, as indicated in section 10 of OGLv1.0a, as" << endl;
-		cout << "should a copy of the CONTRIBUTORS text file." << endl;
-	cout << endl <<  "Copyright (C) 2017 Frozen Mustelid and contributors"<< endl;
+	cout << "been included with this program, as indicated in section 10 of OGLv1.0a, as" << endl;
+	cout << "should a copy of the CONTRIBUTORS text file." << endl;
+	cout << endl << "Copyright (C) 2017 Frozen Mustelid and contributors"<< endl;
 }
-
-
-
-/*switch (creatSize) {
-	case Size::FINE: {
-		break;
-	}
-	case Size::DIMINUTIVE: {
-		break;
-	}
-	case Size::TINY: {
-		break;
-	}
-	case Size::SMALL: {
-		break;
-			}
-	case Size::MEDIUM: {
-	break;
-	}
-	case Size::LARGE: {
-		break;
-	}
-	case Size::HUGE: {
-		break;
-	}
-	case Size::GARGANTUAN: {
-		break;
-	}
-	case Size::COLOSSAL: {
-		break;
-	}
-	default: {
-		cout << "Invalid creature size found, exiting program" << endl;
-		exit(_ERR_INVALID_SIZE);
-	}
-} //*/
-
-
-/*switch (creatType) {
-		case CreatureType::ABERRATION: {
-			break;
-		}
-		case CreatureType::ANIMAL: {
-			break;
-		}
-		case CreatureType::CONSTRUCT: {
-			break;
-		}
-		case CreatureType::DRAGON: {
-			break;
-		}
-		case CreatureType::FEY: {
-			break;
-		}
-		case CreatureType::HUMANOID: {
-			break;
-		}
-		case CreatureType::MAGICAL_BEAST: {
-			break;
-		}
-		case CreatureType::MONSTROUS_HUMANOID: {
-			break;
-		}
-		case CreatureType::OOZE: {
-			break;
-		}
-		case CreatureType::OUTSIDER: {
-			break;
-		}
-		case CreatureType::PLANT: {
-			break;
-		}
-		case CreatureType::UNDEAD: {
-			break;
-		}
-		case CreatureType::VERMIN: {
-			break;
-		}
-		default: {
-			cout << "Homebrew creature types will come later. Exiting program." << endl;
-			exit(_ERR_INVALID_CREATURE_TYPE);
-		}
-
-	}//*/

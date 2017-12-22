@@ -1,369 +1,188 @@
-#include "commonFunctions.hpp"
-#include "errors.hpp"
 #include "pfMon.hpp"
-#include "platform.hpp"
 
 #include <cmath>
-#undef HUGE
-//Something in cmath causes a conflict with Size::HUGE
 #include <cstring>
 #include <climits>
 #include <iostream>
 #include <string>
+#include <map>
+#include <vector>
+#include <algorithm>
+
+#include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/join.hpp>
 
 using namespace std;
+
+static map<string, Size> sizeMap{
+	{ "F", Size::Fine },
+	{ "D", Size::Diminutive },
+	{ "T", Size::Tiny },
+	{ "S", Size::Small },
+	{ "M", Size::Medium },
+	{ "L", Size::Large },
+	{ "H", Size::Huge },
+	{ "G", Size::Gargantuan },
+	{ "C", Size::Colossal }
+};
+
+static map<string, Alignment> alignmentMap{
+	{ "LG", Alignment::LawfulGood },
+	{ "NG", Alignment::NeutralGood },
+	{ "CG", Alignment::ChaoticGood },
+	{ "LN", Alignment::LawfulNeutral },
+	{ "N", Alignment::Neutral },
+	{ "CN", Alignment::ChaoticNeutral },
+	{ "LE", Alignment::LawfulEvil },
+	{ "NE", Alignment::NeutralEvil },
+	{ "CE", Alignment::ChaoticEvil }
+};
+
+static map<string, const ChallengeRating> crMap{
+	{ "0", ChallengeRating(0) },
+	{ "1/8", ChallengeRating(1, 8) },
+	{ "1/6", ChallengeRating(1, 6) },
+	{ "1/4", ChallengeRating(1, 4) },
+	{ "1/3", ChallengeRating(1, 3) },
+	{ "1/2", ChallengeRating(1, 2) },
+	{ "1", ChallengeRating(1) },
+	{ "2", ChallengeRating(2) },
+	{ "3", ChallengeRating(3) },
+	{ "4", ChallengeRating(4) },
+	{ "5", ChallengeRating(5) },
+	{ "6", ChallengeRating(6) },
+	{ "7", ChallengeRating(7) },
+	{ "8", ChallengeRating(8) },
+	{ "9", ChallengeRating(9) },
+	{ "10", ChallengeRating(10) },
+	{ "11", ChallengeRating(11) },
+	{ "12", ChallengeRating(12) },
+	{ "13", ChallengeRating(13) },
+	{ "14", ChallengeRating(14) },
+	{ "15", ChallengeRating(15) },
+	{ "16", ChallengeRating(16) },
+	{ "17", ChallengeRating(17) },
+	{ "18", ChallengeRating(18) },
+	{ "19", ChallengeRating(19) },
+	{ "20", ChallengeRating(20) },
+	{ "21", ChallengeRating(21) },
+	{ "22", ChallengeRating(22) },
+	{ "23", ChallengeRating(23) },
+	{ "24", ChallengeRating(24) },
+	{ "25", ChallengeRating(25) },
+	{ "26", ChallengeRating(26) },
+	{ "27", ChallengeRating(27) },
+	{ "28", ChallengeRating(28) },
+	{ "29", ChallengeRating(29) },
+	{ "30", ChallengeRating(30) }
+};
+
+static map<string, uint32_t> xpMap{
+	{ "0", 0 },
+	{ "1/8", 50 },
+	{ "1/6", 65 },
+	{ "1/4", 100 },
+	{ "1/3", 135 },
+	{ "1/2", 200 },
+	{ "1", 400 },
+	{ "2", 600 },
+	{ "3", 800 },
+	{ "4", 1'200 },
+	{ "5", 1'600 },
+	{ "6", 2'400 },
+	{ "7", 3'200 },
+	{ "8", 4'800 },
+	{ "9", 6'400 },
+	{ "10", 9'600 },
+	{ "11", 12'800 },
+	{ "12", 19'200 },
+	{ "13", 25'600 },
+	{ "14", 38'400 },
+	{ "15", 51'200 },
+	{ "16", 76'800 },
+	{ "17", 102'400 },
+	{ "18", 153'600 },
+	{ "19", 204'800 },
+	{ "20", 307'200 },
+	{ "21", 409'600 },
+	{ "22", 614'400 },
+	{ "23", 819'200 },
+	{ "24", 1'228'800 },
+	{ "25", 1'638'400 },
+	{ "26", 2'457'600 },
+	{ "27", 3'276'800 },
+	{ "28", 4'915'200 },
+	{ "29", 6'553'600 },
+	{ "30", 9'830'400 }
+};
+
+/**
+ * Return a comma-separated list of the map keys.
+ */
+template<typename Container>
+static string map_keys(Container cont) {
+	vector<string> valid;
+	transform(cont.cbegin(), cont.cend(), std::back_inserter(valid), [](auto pair) { return pair.first; });
+
+	return boost::algorithm::join(valid, ", ");
+}
+
 
 /******************************************************************************\
  *                                 HEADER                                     *
 \******************************************************************************/
 
-long PfMon::crAndXp() {
+ChallengeRating PfMon::fetchCR() {
+	string line;
 
-	long xp;
+	while (true) {
+		cout << "CR (fraction if less than 1): ";
+		getline(cin, line);
 
-	double crAsDouble;
-	int crAsInt;
-
-	cout << "CR (decimal 2 places if less than 1): ";
-	cin >> crAsDouble;
-	//TODO Add reprompt for invalid selection
-
-	//TODO Determine formula and use that instead of using a lookup table
-
-	crAsInt = static_cast<int>(crAsDouble);
-
-	if (crAsDouble == .13) {
-		xp = 50L;
-		cr[0] = '1';
-		cr[1] = '/';
-		cr[2] = '8';
-
-		this->xp = xp;
-		return xp;
+		try {
+			return crMap.at(line);
+		} catch (const std::out_of_range&) {
+			cout << "Invalid CR, please specify a number 0-30 or the fractions 1/8, 1/6, 1/4, 1/3, or 1/2." << endl;
+		}
 	}
-	if (crAsDouble == .17) {
-		xp = 65L;
-		cr[0] = '1';
-		cr[1] = '/';
-		cr[2] = '6';
-
-		this->xp = xp;
-		return xp;
-	}
-	if (crAsDouble == .25) {
-		xp = 100L;
-		cr[0] = '1';
-		cr[1] = '/';
-		cr[2] = '4';
-
-		this->xp = xp;
-		return xp;
-	}
-	if (crAsDouble == .33) {
-		xp = 135L;
-		cr[0] = '1';
-		cr[1] = '/';
-		cr[2] = '3';
-
-		this->xp = xp;
-		return xp;
-	}
-	if (crAsDouble == .50) {
-		xp = 200L;
-		cr[0] = '1';
-		cr[1] = '/';
-		cr[2] = '2';
-
-		this->xp = xp;
-		return xp;
-	}
-
-	switch (crAsInt) {
-
-		case 1: {
-			xp = 400L;
-			cr[0] = '1';
-
-			break;
-		}
-		case 2: {
-			xp = 600L;
-			cr[0] = '2';
-
-			break;
-		}
-		case 3: {
-			xp = 800L;
-			cr[0] = '3';
-
-			break;
-		}
-		case 4: {
-			xp = 1'200L;
-			cr[0] = '4';
-
-			break;
-		}
-		case 5: {
-			xp = 1'600L;
-			cr[0] = '5';
-
-			break;
-		}
-		case 6: {
-			xp = 2'400L;
-			cr[0] = '6';
-
-			break;
-		}
-		case 7: {
-			xp = 3'200L;
-			cr[0] = '7';
-
-			break;
-		}
-		case 8: {
-			xp = 4'800L;
-			cr[0] = '8';
-
-			break;
-		}
-		case 9: {
-			xp = 6'400L;
-			cr[0] = '9';
-
-			break;
-		}
-		case 10: {
-			xp = 9'600L;
-			cr[0] = '1';
-			cr[1] = '0';
-
-			break;
-		}
-		case 11: {
-			xp = 12'800L;
-			cr[0] = '1';
-			cr[1] = '1';
-
-			break;
-		}
-		case 12: {
-			xp = 19'200L;
-			cr[0] = '1';
-			cr[1] = '2';
-
-			break;
-		}
-		case 13: {
-			xp = 25'600L;
-			cr[0] = '1';
-			cr[1] = '3';
-
-			break;
-		}
-		case 14: {
-			xp = 38'400L;
-			cr[0] = '1';
-			cr[1] = '4';
-
-			break;
-		}
-		case 15: {
-			xp = 51'200L;
-			cr[0] = '1';
-			cr[1] = '5';
-
-			break;
-		}
-		case 16: {
-			xp = 76'800L;
-			cr[0] = '1';
-			cr[1] = '6';
-
-			break;
-		}
-		case 17: {
-			xp = 102'000L;
-			cr[0] = '1';
-			cr[1] = '7';
-
-			break;
-		}
-		case 18: {
-			xp = 153'600L;
-			cr[0] = '1';
-			cr[1] = '8';
-
-			break;
-		}
-		case 19: {
-			xp = 204'800L;
-			cr[0] = '1';
-			cr[1] = '9';
-
-			break;
-		}
-		case 20: {
-			xp = 307'200L;
-			cr[0] = '2';
-			cr[1] = '0';
-
-			break;
-		}
-		case 21: {
-			xp = 409'600L;
-			cr[0] = '2';
-			cr[1] = '1';
-
-			break;
-		}
-		case 22: {
-			xp = 614'400L;
-			cr[0] = '2';
-			cr[1] = '2';
-
-			break;
-		}
-		case 23: {
-			xp = 819'200L;
-			cr[0] = '2';
-			cr[1] = '3';
-
-			break;
-		}
-		case 24: {
-			xp = 1'228'800L;
-			cr[0] = '2';
-			cr[1] = '4';
-
-			break;
-		}
-		case 25: {
-			xp = 1'638'400L;
-			cr[0] = '2';
-			cr[1] = '5';
-
-			break;
-		}
-		case 26: {
-			xp = 2'457'600L;
-			cr[0] = '2';
-			cr[1] = '6';
-
-			break;
-		}
-		case 27: {
-			xp = 3'276'800L;
-			cr[0] = '2';
-			cr[1] = '7';
-
-			break;
-		}
-		case 28: {
-			xp = 4'915'200L;
-			cr[0] = '2';
-			cr[1] = '8';
-
-			break;
-		}
-		case 29: {
-			xp = 6'553'600L;
-			cr[0] = '2';
-			cr[1] = '9';
-
-			break;
-		}
-		case 30: {
-			xp = 9'830'400L;
-			cr[0] = '3';
-			cr[1] = '0';
-
-			break;
-		}
-		default: {
-
-			xp = 0;
-			cr[0] = '0';
-			cr[1] = '\0';
-			cr[2] = '\0';
-
-			cout << "CR not within parameters, defaulting to 0" << endl;
-
-			break;
-		}
-
-	}
-	
-	formatXp(xp);
-	return xp;
 }
 
-char* PfMon::fetchAlignment() {
-	
-	clearBuffer();
-	cout << "Alignment (two-letter): ";
-	cin.getline(alignment,3,'\n');
-
-	alignment[0] = toupper(alignment[0]);
-	alignment[1] = toupper(alignment[1]);
-	alignment[2] = '\0';
-	
-	return alignment;
+uint32_t PfMon::determineXP(const ChallengeRating& cr) {
+	return xpMap.at(cr.str());
 }
 
-string PfMon::fetchSize() {
-	
-	cout << "Size: ";
-	//cin.getline(creatSizeWords,1023,'\n');
-	getline(cin, creatSizeWords);
-	creatSizeWords = stringToLower(creatSizeWords);
-	creatSizeWords[0] = toupper(creatSizeWords[0]);
-	
-	switch (creatSizeWords[0]) {
-		case 'F': {
-			creatSize = Size::FINE;
-			break;
-		}
-		case 'D': {
-			creatSize = Size::DIMINUTIVE;
-			break;
-		}
-		case 'T': {
-			creatSize = Size::TINY;
-			break;
-		}
-		case 'S': {
-			creatSize = Size::SMALL;
-			break;
-				}
-		case 'M': {
-			creatSize = Size::MEDIUM;
-		break;
-		}
-		case 'L': {
-			creatSize = Size::LARGE;
-			break;
-		}
-		case 'H': {
-			creatSize = Size::HUGE;
-			break;
-		}
-		case 'G': {
-			creatSize = Size::GARGANTUAN;
-			break;
-		}
-		case 'C': {
-			creatSize = Size::COLOSSAL;
-			break;
-		}
-		default: {
-			cout << "Invalid creature size found, exiting program" << endl;
-			exit(_ERR_INVALID_SIZE);
+Alignment PfMon::fetchAlignment() {
+	string line;
+
+	while (true) {
+		cout << "Alignment (abbreviated): ";
+		getline(cin, line);
+		boost::to_upper(line);
+
+		try {
+			return alignmentMap.at(line);
+		} catch (const std::out_of_range&) {
+			cout << "Invalid alignment, please specify one of: " << map_keys(alignmentMap) << endl;
 		}
 	}
-	
-	return creatSizeWords;
+}
+
+Size PfMon::fetchSize() {
+	string line;
+
+	while (true) {
+		cout << "Size (single letter): ";
+		getline(cin, line);
+		boost::to_upper(line);
+
+		try {
+			return sizeMap.at(line);
+		} catch (const std::out_of_range&) {
+			vector<string> valid(sizeMap.size());
+			transform(sizeMap.cbegin(), sizeMap.cend(), valid.begin(), [](auto pair) { return pair.first; });
+			cout << "Invalid creature size, please specify one of: " << map_keys(sizeMap) << endl;
+		}
+	}
 }
 
 string PfMon::fetchCreatureType() {
@@ -469,56 +288,56 @@ string PfMon::formatXp(long xp) {
 CreatureType PfMon::determineCreatureType() {
 
 	if (creatTypeWords == "aberration" || creatTypeWords == "abberration" || creatTypeWords == "abberation") {
-		creatType = CreatureType::ABERRATION;
-		return CreatureType::ABERRATION;
+		creatType = CreatureType::Abberation;
+		return CreatureType::Abberation;
 	}
 	if (creatTypeWords == "animal") {
-		creatType = CreatureType::ANIMAL;
-		return CreatureType::ANIMAL;
+		creatType = CreatureType::Animal;
+		return CreatureType::Animal;
 	}
 	if (creatTypeWords == "construct") {
-		creatType = CreatureType::CONSTRUCT;
-		return CreatureType::CONSTRUCT;
+		creatType = CreatureType::Construct;
+		return CreatureType::Construct;
 	}
 	if (creatTypeWords == "dragon") {
-		creatType = CreatureType::DRAGON;
-		return CreatureType::DRAGON;
+		creatType = CreatureType::Dragon;
+		return CreatureType::Dragon;
 	}
 	if (creatTypeWords == "fey") {
-		creatType = CreatureType::FEY;
-		return CreatureType::FEY;
+		creatType = CreatureType::Fey;
+		return CreatureType::Fey;
 	}
 	if (creatTypeWords == "humanoid") {
-		creatType = CreatureType::HUMANOID;
-		return CreatureType::HUMANOID;
+		creatType = CreatureType::Humanoid;
+		return CreatureType::Humanoid;
 	}
 	if (creatTypeWords == "magical beast") {
-		creatType = CreatureType::MAGICAL_BEAST;
-		return CreatureType::MAGICAL_BEAST;
+		creatType = CreatureType::MagicalBeast;
+		return CreatureType::MagicalBeast;
 	}
 	if (creatTypeWords == "monstrous humanoid") {
-		creatType = CreatureType::MONSTROUS_HUMANOID;
-		return CreatureType::MONSTROUS_HUMANOID;
+		creatType = CreatureType::MonstrousHumanoid;
+		return CreatureType::MonstrousHumanoid;
 	}
 	if (creatTypeWords == "ooze") {
-		creatType = CreatureType::OOZE;
-		return CreatureType::OOZE;
+		creatType = CreatureType::Ooze;
+		return CreatureType::Ooze;
 	}
 	if (creatTypeWords == "outsider") {
-		creatType = CreatureType::OUTSIDER;
-		return CreatureType::OUTSIDER;
+		creatType = CreatureType::Outsider;
+		return CreatureType::Outsider;
 	}
 	if (creatTypeWords == "plant") {
-		creatType = CreatureType::PLANT;
-		return CreatureType::PLANT;
+		creatType = CreatureType::Plant;
+		return CreatureType::Plant;
 	}
 	if (creatTypeWords == "vermin") {
-		creatType = CreatureType::VERMIN;
-		return CreatureType::VERMIN;
+		creatType = CreatureType::Vermin;
+		return CreatureType::Vermin;
 	}
 	if (creatTypeWords == "undead") {
-		creatType = CreatureType::UNDEAD;
-		return CreatureType::UNDEAD;
+		creatType = CreatureType::Undead;
+		return CreatureType::Undead;
 	}
 
 	cout << "Creature type not known." << endl;
@@ -584,39 +403,39 @@ AC PfMon::determineAC() {
 	ac.dex = abilities.dexMod;
 
 	switch (creatSize) {
-		case Size::FINE: {
+		case Size::Fine: {
 			ac.size = 8;
 			break;
 		}
-		case Size::DIMINUTIVE: {
+		case Size::Diminutive: {
 			ac.size = 4;
 			break;
 		}
-		case Size::TINY: {
+		case Size::Tiny: {
 			ac.size = 2;
 			break;
 		}
-		case Size::SMALL: {
+		case Size::Small: {
 			ac.size = 1;
 			break;
 		}
-		case Size::MEDIUM: {
+		case Size::Medium: {
 			ac.size = 0;
 			break;
 		}
-		case Size::LARGE: {
+		case Size::Large: {
 			ac.size = -1;
 			break;
 		}
-		case Size::HUGE: {
+		case Size::Huge: {
 			ac.size = -2;
 			break;
 		}
-		case Size::GARGANTUAN: {
+		case Size::Gargantuan: {
 			ac.size = -4;
 			break;
 		}
-		case Size::COLOSSAL: {
+		case Size::Colossal: {
 			ac.size = -8;
 			break;
 		}
@@ -701,43 +520,43 @@ HitDice PfMon::fetchHd() {
 	cout << "Class levels for monsters will come in a later version." << endl;
 
 	switch (creatType) {
-		case CreatureType::ABERRATION: {
+		case CreatureType::Abberation: {
 			hd.d8 = racialHd;
 			break;
 		}
-		case CreatureType::ANIMAL: {
+		case CreatureType::Animal: {
 			hd.d8 = racialHd;
 			break;
 		}
-		case CreatureType::CONSTRUCT: {
+		case CreatureType::Construct: {
 			hd.d10 = racialHd;
 			switch (creatSize) {
-				case Size::FINE:
-				case Size::DIMINUTIVE:
-				case Size::TINY: {
+				case Size::Fine:
+				case Size::Diminutive:
+				case Size::Tiny: {
 					break;
 				}
-				case Size::SMALL: {
+				case Size::Small: {
 					hd.bonus = 10;
 					break;
 				}
-				case Size::MEDIUM: {
+				case Size::Medium: {
 					hd.bonus = 20;
 					break;
 				}
-				case Size::LARGE: {
+				case Size::Large: {
 					hd.bonus = 30;
 					break;
 				}
-				case Size::HUGE: {
+				case Size::Huge: {
 					hd.bonus = 40;
 					break;
 				}
-				case Size::GARGANTUAN: {
+				case Size::Gargantuan: {
 					hd.bonus = 60;
 					break;
 				}
-				case Size::COLOSSAL: {
+				case Size::Colossal: {
 					hd.bonus = 80;
 					break;
 				}
@@ -748,43 +567,43 @@ HitDice PfMon::fetchHd() {
 			}
 			break;
 		}
-		case CreatureType::DRAGON: {
+		case CreatureType::Dragon: {
 			hd.d12 = racialHd;
 			break;
 		}
-		case CreatureType::FEY: {
+		case CreatureType::Fey: {
 			hd.d6 = racialHd;
 			break;
 		}
-		case CreatureType::HUMANOID: {
+		case CreatureType::Humanoid: {
 			hd.d8 = racialHd;
 			break;
 		}
-		case CreatureType::MAGICAL_BEAST: {
+		case CreatureType::MagicalBeast: {
 			hd.d10 = racialHd;
 			break;
 		}
-		case CreatureType::MONSTROUS_HUMANOID: {
+		case CreatureType::MonstrousHumanoid: {
 			hd.d10 = racialHd;
 			break;
 		}
-		case CreatureType::OOZE: {
+		case CreatureType::Ooze: {
 			hd.d8 = racialHd;
 			break;
 		}
-		case CreatureType::OUTSIDER: {
+		case CreatureType::Outsider: {
 			hd.d10 = racialHd;
 			break;
 		}
-		case CreatureType::PLANT: {
+		case CreatureType::Plant: {
 			hd.d8 = racialHd;
 			break;
 		}
-		case CreatureType::UNDEAD: {
+		case CreatureType::Undead: {
 			hd.d8 = racialHd;
 			break;
 		}
-		case CreatureType::VERMIN: {
+		case CreatureType::Vermin: {
 			hd.d8 = racialHd;
 			break;
 		}
@@ -851,15 +670,15 @@ string PfMon::determineImmunities() {
 	string typeImmunities;
 
 	switch (creatType) {
-		case CreatureType::CONSTRUCT: {
+		case CreatureType::Construct: {
 			typeImmunities = "construct traits, ";
 			break;
 		}
-		case CreatureType::PLANT: {
+		case CreatureType::Plant: {
 			typeImmunities = "plant traits, ";
 			break;
 		}
-		case CreatureType::UNDEAD: {
+		case CreatureType::Undead: {
 			typeImmunities = "undead traits, ";
 			break;
 		}
@@ -911,29 +730,29 @@ Saves PfMon::determineSaves() {
 	char choice;
 
 	switch (creatType) {
-		case CreatureType::ABERRATION: {
+		case CreatureType::Abberation: {
 			saves.goodWill = true;
 			break;
 		}
-		case CreatureType::ANIMAL: {
+		case CreatureType::Animal: {
 			saves.goodFort = true;
 			saves.goodReflex = true;
 			break;
 		}
-		case CreatureType::CONSTRUCT: {
+		case CreatureType::Construct: {
 			break;
 		}
-		case CreatureType::DRAGON: {
+		case CreatureType::Dragon: {
 			saves.goodFort = true;
 			saves.goodReflex = true;
 			saves.goodWill = true;
 			break;
 		}
-		case CreatureType::FEY: {
+		case CreatureType::Fey: {
 			saves.goodFort = true;
 			break;
 		}
-		case CreatureType::HUMANOID: {
+		case CreatureType::Humanoid: {
 			cout << "Humanoid creatures get 1 good save." << endl;
 			cout << "\t[1] Fortitude" << endl;
 			cout << "\t[2] Reflex" << endl;
@@ -961,20 +780,20 @@ Saves PfMon::determineSaves() {
 			}
 			break;
 		}
-		case CreatureType::MAGICAL_BEAST: {
+		case CreatureType::MagicalBeast: {
 			saves.goodFort = true;
 			saves.goodReflex = true;
 			break;
 		}
-		case CreatureType::MONSTROUS_HUMANOID: {
+		case CreatureType::MonstrousHumanoid: {
 			saves.goodReflex = true;
 			saves.goodWill = true;
 			break;
 		}
-		case CreatureType::OOZE: {
+		case CreatureType::Ooze: {
 			break;
 		}
-		case CreatureType::OUTSIDER: {
+		case CreatureType::Outsider: {
 			cout << "Outsider creatures get 2 good saves." << endl;
 			cout << "\t[1] Fortitude  +  Reflex" << endl;
 			cout << "\t[2] Fortitude  +  Will" << endl;
@@ -1005,15 +824,15 @@ Saves PfMon::determineSaves() {
 			}
 			break;
 		}
-		case CreatureType::PLANT: {
+		case CreatureType::Plant: {
 			saves.goodFort = true;
 			break;
 		}
-		case CreatureType::UNDEAD: {
+		case CreatureType::Undead: {
 			saves.goodWill = true;
 			break;
 		}
-		case CreatureType::VERMIN: {
+		case CreatureType::Vermin: {
 			saves.goodFort = true;
 			break;
 		}
@@ -1062,7 +881,7 @@ Saves PfMon::determineSaves() {
 	cout << "WIS mod: " <<  abilities.wisMod << endl;
 	#endif
 
-     return saves;
+	 return saves;
 }
 
 string PfMon::calculateAcBreakdown() {
@@ -1164,9 +983,9 @@ string PfMon::calculateHpBreakdown() {
 		hpBreakdown += to_string(hd.d12) + "d12 + ";
 	}
 
-	if (creatType == CreatureType::UNDEAD) {
+	if (creatType == CreatureType::Undead) {
 		hpBreakdown += to_string(abilities.chaMod * hd.totalHd + hd.bonus);
-	} else if (creatType == CreatureType::CONSTRUCT) {
+	} else if (creatType == CreatureType::Construct) {
 		hpBreakdown += to_string(hd.bonus);
 	} else {
 		hpBreakdown += to_string(abilities.conMod * hd.totalHd + hd.bonus);
@@ -1217,39 +1036,39 @@ string PfMon::fetchRangedAtk() {
 string PfMon::calculateSpace() {
 
 	switch (creatSize) {
-		case Size::FINE: {
+		case Size::Fine: {
 			space = "1/2 ft.";
 			break;
 		}
-		case Size::DIMINUTIVE: {
+		case Size::Diminutive: {
 			space = "1 ft.";
 			break;
 		}
-		case Size::TINY: {
+		case Size::Tiny: {
 			space = "2-1/2 ft.";
 			break;
 		}
-		case Size::SMALL: {
+		case Size::Small: {
 			space = "5 ft.";
 			break;
 				}
-		case Size::MEDIUM: {
+		case Size::Medium: {
 			space = "5 ft.";
 			break;
 		}
-		case Size::LARGE: {
+		case Size::Large: {
 			space = "10 ft.";
 			break;
 		}
-		case Size::HUGE: {
+		case Size::Huge: {
 			space = "15 ft.";
 			break;
 		}
-		case Size::GARGANTUAN: {
+		case Size::Gargantuan: {
 			space = "20 ft.";
 			break;
 		}
-		case Size::COLOSSAL: {
+		case Size::Colossal: {
 			space = "30 ft.";
 			break;
 		}
@@ -1267,27 +1086,27 @@ string PfMon::determineReach() {
 	string isTall;
 
 	switch (creatSize) {
-		case Size::FINE: {
+		case Size::Fine: {
 			reach = "0 ft.";
 			break;
 		}
-		case Size::DIMINUTIVE: {
+		case Size::Diminutive: {
 			reach = "0 ft.";
 			break;
 		}
-		case Size::TINY: {
+		case Size::Tiny: {
 			reach = "0 ft.";
 			break;
 		}
-		case Size::SMALL: {
+		case Size::Small: {
 			reach = "5 ft.";
 			break;
 				}
-		case Size::MEDIUM: {
+		case Size::Medium: {
 			reach = "5 ft.";
 			break;
 		}
-		case Size::LARGE: {
+		case Size::Large: {
 			cout << "Is the creature tall or long? ";
 			cin >> isTall;
 
@@ -1298,7 +1117,7 @@ string PfMon::determineReach() {
 			}
 			break;
 		}
-		case Size::HUGE: {
+		case Size::Huge: {
 			cout << "Is the creature tall or long? ";
 			cin >> isTall;
 
@@ -1309,7 +1128,7 @@ string PfMon::determineReach() {
 			}
 			break;
 		}
-		case Size::GARGANTUAN: {
+		case Size::Gargantuan: {
 			cout << "Is the creature tall or long? ";
 			cin >> isTall;
 
@@ -1320,7 +1139,7 @@ string PfMon::determineReach() {
 			}
 			break;
 		}
-		case Size::COLOSSAL: {
+		case Size::Colossal: {
 			cout << "Is the creature tall or long? ";
 			cin >> isTall;
 
@@ -1368,7 +1187,7 @@ Abilities PfMon::fetchAbilities() {
 	abilities.dexMod = static_cast<int>(floor((abilities.dex - 10) / 2.0));
 	abilities.displayDex = to_string(abilities.dex);
 
-	if ((creatType != CreatureType::UNDEAD) && (creatType != CreatureType::CONSTRUCT)) {
+	if ((creatType != CreatureType::Undead) && (creatType != CreatureType::Construct)) {
 		cout << "CON: ";
 		cin >> abilities.con;
 		abilities.conMod = static_cast<int>(floor((abilities.con - 10) / 2.0));
@@ -1381,7 +1200,7 @@ Abilities PfMon::fetchAbilities() {
 	}
 
 
-	if ((creatType != CreatureType::CONSTRUCT) && (creatType != CreatureType::OOZE)) {
+	if ((creatType != CreatureType::Construct) && (creatType != CreatureType::Ooze)) {
 		clearBuffer();
 		cout << "INT: ";
 		cin >> abilities.intelligence;
@@ -1406,10 +1225,10 @@ Abilities PfMon::fetchAbilities() {
 	abilities.displayCha = to_string(abilities.cha);
 
 
-	if (creatType == CreatureType::UNDEAD) {
+	if (creatType == CreatureType::Undead) {
 		abilities.conMod = abilities.chaMod;
 	}
-	if (creatType == CreatureType::CONSTRUCT) {
+	if (creatType == CreatureType::Construct) {
 		abilities.conMod = 0;
 	}
 
@@ -1447,55 +1266,55 @@ Abilities PfMon::fetchAbilities() {
 int PfMon::calculateBab() {
 
 	switch (creatType) {
-		case CreatureType::ABERRATION: {
+		case CreatureType::Abberation: {
 			bab = static_cast<int>(3.0 / 4 * hd.totalHd);
 			break;
 		}
-		case CreatureType::ANIMAL: {
+		case CreatureType::Animal: {
 			bab = static_cast<int>(3.0 / 4 * hd.totalHd);
 			break;
 		}
-		case CreatureType::CONSTRUCT: {
+		case CreatureType::Construct: {
 			bab = hd.totalHd;
 			break;
 		}
-		case CreatureType::DRAGON: {
+		case CreatureType::Dragon: {
 			bab = hd.totalHd;
 			break;
 		}
-		case CreatureType::FEY: {
+		case CreatureType::Fey: {
 			bab = static_cast<int>(1.0 / 4 * hd.totalHd);
 			break;
 		}
-		case CreatureType::HUMANOID: {
+		case CreatureType::Humanoid: {
 			bab = static_cast<int>(3.0 / 4 * hd.totalHd);
 			break;
 		}
-		case CreatureType::MAGICAL_BEAST: {
+		case CreatureType::MagicalBeast: {
 			bab = hd.totalHd;
 			break;
 		}
-		case CreatureType::MONSTROUS_HUMANOID: {
+		case CreatureType::MonstrousHumanoid: {
 			bab = hd.totalHd;
 			break;
 		}
-		case CreatureType::OOZE: {
+		case CreatureType::Ooze: {
 			bab = static_cast<int>(3.0 / 4 * hd.totalHd);
 			break;
 		}
-		case CreatureType::OUTSIDER: {
+		case CreatureType::Outsider: {
 			bab = hd.totalHd;
 			break;
 		}
-		case CreatureType::PLANT: {
+		case CreatureType::Plant: {
 			bab = static_cast<int>(3.0 / 4 * hd.totalHd);
 			break;
 		}
-		case CreatureType::UNDEAD: {
+		case CreatureType::Undead: {
 			bab = static_cast<int>(3.0 / 4 * hd.totalHd);
 			break;
 		}
-		case CreatureType::VERMIN: {
+		case CreatureType::Vermin: {
 			bab = static_cast<int>(3.0 / 4 * hd.totalHd);
 			break;
 		}
@@ -1559,55 +1378,55 @@ string PfMon::fetchSkills() {
 	int maxSkillPoints = INT_MIN;
 
 	switch (creatType) {
-		case CreatureType::ABERRATION: {
+		case CreatureType::Abberation: {
 			maxSkillPoints = (4 + abilities.intMod) * hd.totalHd;
 			break;
 		}
-		case CreatureType::ANIMAL: {
+		case CreatureType::Animal: {
 			maxSkillPoints = (2 + abilities.intMod) * hd.totalHd;
 			break;
 		}
-		case CreatureType::CONSTRUCT: {
+		case CreatureType::Construct: {
 			maxSkillPoints = (2 + abilities.intMod) * hd.totalHd;
 			break;
 		}
-		case CreatureType::DRAGON: {
+		case CreatureType::Dragon: {
 			maxSkillPoints = (6 + abilities.intMod) * hd.totalHd;
 			break;
 		}
-		case CreatureType::FEY: {
+		case CreatureType::Fey: {
 			maxSkillPoints = (6 + abilities.intMod) * hd.totalHd;
 			break;
 		}
-		case CreatureType::HUMANOID: {
+		case CreatureType::Humanoid: {
 			maxSkillPoints = (2 + abilities.intMod) * hd.totalHd;
 			break;
 		}
-		case CreatureType::MAGICAL_BEAST: {
+		case CreatureType::MagicalBeast: {
 			maxSkillPoints = (2 + abilities.intMod) * hd.totalHd;
 			break;
 		}
-		case CreatureType::MONSTROUS_HUMANOID: {
+		case CreatureType::MonstrousHumanoid: {
 			maxSkillPoints = (4 + abilities.intMod) * hd.totalHd;
 			break;
 		}
-		case CreatureType::OOZE: {
+		case CreatureType::Ooze: {
 			maxSkillPoints = (2 + abilities.intMod) * hd.totalHd;
 			break;
 		}
-		case CreatureType::OUTSIDER: {
+		case CreatureType::Outsider: {
 			maxSkillPoints = (6 + abilities.intMod) * hd.totalHd;
 			break;
 		}
-		case CreatureType::PLANT: {
+		case CreatureType::Plant: {
 			maxSkillPoints = (2 + abilities.intMod) * hd.totalHd;
 			break;
 		}
-		case CreatureType::UNDEAD: {
+		case CreatureType::Undead: {
 			maxSkillPoints = (4 + abilities.intMod) * hd.totalHd;
 			break;
 		}
-		case CreatureType::VERMIN: {
+		case CreatureType::Vermin: {
 			maxSkillPoints = (2 + abilities.intMod) * hd.totalHd;
 			break;
 		}
@@ -1618,18 +1437,18 @@ string PfMon::fetchSkills() {
 
 	}
 
-     int strSkills = 3 + abilities.strMod + hd.totalHd;
-     int dexSkills = 3 + abilities.dexMod + hd.totalHd;
-     int conSkills = 3 + abilities.conMod + hd.totalHd;
-     int intSkills = 3 + abilities.intMod + hd.totalHd;
-     int wisSkills = 3 + abilities.wisMod + hd.totalHd;
-     int chaSkills = 3 + abilities.chaMod + hd.totalHd;
+	 int strSkills = 3 + abilities.strMod + hd.totalHd;
+	 int dexSkills = 3 + abilities.dexMod + hd.totalHd;
+	 int conSkills = 3 + abilities.conMod + hd.totalHd;
+	 int intSkills = 3 + abilities.intMod + hd.totalHd;
+	 int wisSkills = 3 + abilities.wisMod + hd.totalHd;
+	 int chaSkills = 3 + abilities.chaMod + hd.totalHd;
 
-     cout << "Enter the creature's skills. The highest possible will be listed below, assuming that the creature gains that skill as a class skill." << endl;
-     cout << "\tSTR: " << strSkills << endl;
-     cout << "\tDEX: " << dexSkills << endl;
-     cout << "\tCON: " << conSkills << endl;
-     cout << "\tINT: " << intSkills << endl;
+	 cout << "Enter the creature's skills. The highest possible will be listed below, assuming that the creature gains that skill as a class skill." << endl;
+	 cout << "\tSTR: " << strSkills << endl;
+	 cout << "\tDEX: " << dexSkills << endl;
+	 cout << "\tCON: " << conSkills << endl;
+	 cout << "\tINT: " << intSkills << endl;
 	cout << "\tWIS: " << wisSkills << endl;
 	cout << "\tCHA: " << chaSkills << endl;
 
